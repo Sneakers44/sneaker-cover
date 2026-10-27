@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sneaker Cover</title>
+  <meta name="theme-color" content="#0f1115">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sneaker Cover">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>
+        <h1>Sneaker Cover</h1>
+        <p>La cover abbinata alle tue scarpe</p>
+      </div>
+    </div>
+    <button id="btnSettings" class="icon-btn" aria-label="Impostazioni">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.3 7.3 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.3 7.3 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1l.4 2.6h4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <!-- STEP 1: foto -->
+    <section class="card" id="step1">
+      <div class="step-head"><span class="num">1</span><h2>Foto delle sneakers</h2></div>
+      <div id="photoBox" class="photo-box empty">
+        <img id="photoPreview" alt="">
+        <div class="placeholder">
+          <svg viewBox="0 0 24 24" width="40" height="40"><path fill="currentColor" d="M9 3 7.2 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
+          <span>Inquadra bene le scarpe, con buona luce</span>
+        </div>
+      </div>
+      <div class="row">
+        <label class="btn primary">
+          <input id="inCamera" type="file" accept="image/*" capture="environment" hidden>
+          📸 Scatta foto
+        </label>
+        <label class="btn">
+          <input id="inGallery" type="file" accept="image/*" hidden>
+          🖼️ Galleria
+        </label>
+      </div>
+    </section>
+
+    <!-- STEP 2: stile -->
+    <section class="card" id="step2">
+      <div class="step-head"><span class="num">2</span><h2>Stile della cover</h2></div>
+      <div id="styleChips" class="chips"></div>
+      <textarea id="extra" rows="2" placeholder="Richieste extra (facoltativo): es. aggiungi il mio nome, più arancione, sfondo scuro…"></textarea>
+      <button id="btnGenerate" class="btn primary block" disabled>✨ Genera cover con Gemini</button>
+      <p class="hint">Hai già un'immagine pronta?
+        <label class="link"><input id="inArt" type="file" accept="image/*" hidden>Caricala direttamente</label>
+      </p>
+    </section>
+
+    <!-- STEP 3: anteprima e PDF -->
+    <section class="card hidden" id="step3">
+      <div class="step-head"><span class="num">3</span><h2>Anteprima e stampa</h2></div>
+      <div class="preview-wrap"><div id="preview"></div></div>
+
+      <div class="controls">
+        <label>Zoom <input id="zoom" type="range" min="1" max="2.5" step="0.01" value="1"></label>
+        <label>Orizzontale <input id="offX" type="range" min="-1" max="1" step="0.01" value="0"></label>
+        <label>Verticale <input id="offY" type="range" min="-1" max="1" step="0.01" value="0"></label>
+        <label class="switch"><input id="camGuide" type="checkbox" checked> Guida foro fotocamere</label>
+      </div>
+
+      <div class="row">
+        <button id="btnRegenerate" class="btn">🔄 Rigenera</button>
+        <button id="btnPdf" class="btn primary">🖨️ Crea PDF</button>
+      </div>
+      <div id="pdfActions" class="row hidden">
+        <button id="btnShare" class="btn primary">📤 Condividi / Stampa</button>
+        <a id="btnDownload" class="btn" download="Stampa_Cover_iPhone_16_Pro_Max.pdf">⬇️ Scarica</a>
+      </div>
+      <p class="hint">Stampa su A4 a <b>scala 100%</b> (“Dimensioni reali”), poi verifica che il righello misuri 5 cm.</p>
+    </section>
+
+    <!-- Storico -->
+    <section class="card" id="historyCard">
+      <div class="step-head"><span class="num">★</span><h2>Le mie cover</h2></div>
+      <div id="history" class="history"><p class="hint">Le cover generate compariranno qui.</p></div>
+    </section>
+  </main>
+
+  <!-- Overlay di caricamento -->
+  <div id="loading" class="loading hidden" role="status">
+    <div class="spinner"></div>
+    <p id="loadingText">Gemini sta disegnando la tua cover…</p>
+    <button id="btnCancel" class="btn small">Annulla</button>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Impostazioni -->
+  <dialog id="settings">
+    <form method="dialog" class="settings">
+      <h2>Impostazioni</h2>
+      <label>Chiave API Gemini
+        <input id="apiKey" type="password" autocomplete="off" placeholder="AIza…">
+      </label>
+      <p class="hint">Creala gratis su <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Resta salvata solo su questo dispositivo.</p>
+      <label>Modello immagini
+        <select id="modelSelect"></select>
+      </label>
+      <button type="button" id="btnLoadModels" class="btn small">Carica modelli disponibili</button>
+      <label>…oppure nome modello personalizzato
+        <input id="modelCustom" type="text" placeholder="es. gemini-3-pro-image-preview">
+      </label>
+      <label>Sottotitolo nel PDF
+        <input id="subtitle" type="text" placeholder="Design personalizzato abbinato alle tue scarpe">
+      </label>
+      <div class="row">
+        <button value="cancel" class="btn">Chiudi</button>
+        <button id="btnSaveSettings" value="save" class="btn primary">Salva</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="vendor/jspdf.umd.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
