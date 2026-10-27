@@ -35,21 +35,20 @@ stencil shapes of the shoe, tags and stickers, strictly using the shoe's color p
 
 export function buildPrompt(styleKey, extra) {
   const style = STYLES[styleKey] || STYLES.pop;
-  return `You are designing a printable artwork insert for a clear iPhone 16 Pro Max case.
+  return `You are designing a full-bleed printable artwork insert for a clear iPhone 16 Pro Max case.
 Use the attached photo of my sneakers as the ONLY source of inspiration: match their exact colors,
 materials, patterns and branding so the phone case pairs perfectly with the shoes.
 
 STYLE:
 ${style.prompt}
 
-STRICT LAYOUT RULES:
-- Vertical portrait artwork, full-bleed edge to edge, filling the whole canvas.
-- Do NOT draw a phone, a phone outline, a case, device frame, camera module, lenses, borders, white margins or mockup.
-- The top-left area (about the top 28% height x left 55% width) will be covered by the camera cutout:
-  keep logos, faces and important details out of that zone (only background pattern there).
-- Keep the main focal element centered horizontally; avoid important details within 5% of the left/right edges.
-- No text other than what the style asks for. High resolution, crisp, print quality.
-${extra ? `\nADDITIONAL REQUESTS FROM THE USER:\n${extra}\n` : ''}`;
+CRITICAL FULL-BLEED AND NO-BORDER RULES:
+- Vertical portrait artwork filling 100% of the entire canvas from top edge to bottom edge, left edge to right edge.
+- ABSOLUTELY NO white borders, blank margins, framing, letterboxing, or padding at the top, bottom, or sides.
+- Do NOT draw a phone case outline, rounded smartphone borders, mockup frame, cut lines, or camera cutout holes on the image itself. The artwork must bleed completely past all edges.
+- The top-left corner (top 26% height x left 52% width) will later have a camera cutout hole made: do not place important logos or details in that top-left corner.
+- Keep the main graphic design elements centered horizontally and vertically. High resolution, ultra crisp, print quality.
+${extra ? `\nADDITIONAL USER INSTRUCTIONS:\n${extra}\n` : ''}`;
 }
 
 /** Elenca i modelli disponibili per la chiave che supportano la generazione di immagini. */

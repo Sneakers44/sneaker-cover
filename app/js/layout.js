@@ -7,10 +7,9 @@ export const PAGE = { w: 210, h: 297 };
 export const CUT = { x: 27.2, y: 73.95, w: 77.6, h: 163.0, r: 12 };
 
 // Guida modulo fotocamere iPhone 16 Pro Max (relativa all'angolo in alto a
-// sinistra della sagoma, vista posteriore). Modifica qui se serve affinare il foro.
+// sinistra della sagoma, vista posteriore).
 export const CAMERA = {
   x: 5.2, y: 5.5, w: 38.2, h: 38.7, r: 6.5,
-  // cerchi in coordinate frazionarie del modulo (cx, cy, r rispetto alla larghezza)
   holes: [
     { cx: 0.254, cy: 0.192, r: 0.198, ring: true },  // grandangolo
     { cx: 0.254, cy: 0.752, r: 0.198, ring: true },  // ultra-grandangolo
@@ -39,20 +38,98 @@ function roundRectPath(ctx, x, y, w, h, r) {
 }
 
 /**
+ * Rileva ed elimina eventuali margini/cornici bianche generate dal modello
+ * per far sì che la grafica riempia l'intera sagoma da bordo a bordo senza lasciare strisce bianche.
+ */
+function getArtworkContentBounds(art) {
+  const iw = art.naturalWidth || art.width;
+  const ih = art.naturalHeight || art.height;
+  const sampleCanvas = document.createElement('canvas');
+  // Usiamo una risoluzione compatta per analizzare i bordi velocemente
+  const sw = Math.min(iw, 400);
+  const sh = Math.round(ih * (sw / iw));
+  sampleCanvas.width = sw;
+  sampleCanvas.height = sh;
+  const sctx = sampleCanvas.getContext('2d');
+  sctx.drawImage(art, 0, 0, sw, sh);
+
+  const imgData = sctx.getImageData(0, 0, sw, sh).data;
+  const isBlank = (x, y) => {
+    const idx = (y * sw + x) * 4;
+    const r = imgData[idx], g = imgData[idx + 1], b = imgData[idx + 2], a = imgData[idx + 3];
+    return a < 20 || (r > 240 && g > 240 && b > 240);
+  };
+
+  let top = 0;
+  while (top < sh - 10) {
+    let blankCount = 0;
+    for (let x = 0; x < sw; x += 2) {
+      if (isBlank(x, top)) blankCount++;
+    }
+    if (blankCount / (sw / 2) > 0.94) top++;
+    else break;
+  }
+
+  let bottom = sh - 1;
+  while (bottom > top + 10) {
+    let blankCount = 0;
+    for (let x = 0; x < sw; x += 2) {
+      if (isBlank(x, bottom)) blankCount++;
+    }
+    if (blankCount / (sw / 2) > 0.94) bottom--;
+    else break;
+  }
+
+  let left = 0;
+  while (left < sw - 10) {
+    let blankCount = 0;
+    for (let y = top; y <= bottom; y += 2) {
+      if (isBlank(left, y)) blankCount++;
+    }
+    if (blankCount / ((bottom - top) / 2) > 0.94) left++;
+    else break;
+  }
+
+  let right = sw - 1;
+  while (right > left + 10) {
+    let blankCount = 0;
+    for (let y = top; y <= bottom; y += 2) {
+      if (isBlank(right, y)) blankCount++;
+    }
+    if (blankCount / ((bottom - top) / 2) > 0.94) right--;
+    else break;
+  }
+
+  // Se i bordi trovati sono minimi o inconsistenti, usa l'immagine intera
+  const scale = iw / sw;
+  const cropX = Math.round(left * scale);
+  const cropY = Math.round(top * scale);
+  const cropW = Math.round((right - left + 1) * scale);
+  const cropH = Math.round((bottom - top + 1) * scale);
+
+  return {
+    sx: cropX,
+    sy: cropY,
+    sw: cropW,
+    sh: cropH,
+  };
+}
+
+/**
  * Compone la grafica della cover (ritagliata nella sagoma) su un canvas a 300 dpi.
  * @param {HTMLImageElement|ImageBitmap} art immagine generata
- * @param {{zoom:number, offX:number, offY:number, camera:boolean, scale?:number}} opts
- *   zoom >= 1, offX/offY in [-1, 1] (spostamento relativo dell'inquadratura)
+ * @param {{zoom:number, offX:number, offY:number, camera:boolean, autoTrim?:boolean, scale?:number}} opts
  */
 export function composeCover(art, opts = {}) {
-  const { zoom = 1, offX = 0, offY = 0, camera = true, scale = 1 } = opts;
+  const { zoom = 1, offX = 0, offY = 0, camera = true, autoTrim = true, scale = 1 } = opts;
   const k = PX_PER_MM * scale;
   const W = Math.round(CUT.w * k);
   const H = Math.round(CUT.h * k);
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const ctx = c.getContext('2d');
-  // fondo bianco anche fuori dagli angoli arrotondati (il JPEG non ha trasparenza)
+
+  // Fondo trasparente/bianco fuori sagoma
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, W, H);
 
@@ -62,15 +139,25 @@ export function composeCover(art, opts = {}) {
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, W, H);
 
-  // object-fit: cover + zoom + spostamento
-  const iw = art.naturalWidth || art.width;
-  const ih = art.naturalHeight || art.height;
-  const s = Math.max(W / iw, H / ih) * zoom;
-  const dw = iw * s, dh = ih * s;
+  // Rileva e rimuove eventuali margini bianchi lasciati dall'AI
+  let bounds = { sx: 0, sy: 0, sw: art.naturalWidth || art.width, sh: art.naturalHeight || art.height };
+  if (autoTrim) {
+    try {
+      bounds = getArtworkContentBounds(art);
+    } catch {
+      // fallback a dimensioni piene
+    }
+  }
+
+  // object-fit: cover perfetto (riempie sia larghezza che altezza al 100% senza bande bianche)
+  const s = Math.max(W / bounds.sw, H / bounds.sh) * zoom;
+  const dw = bounds.sw * s;
+  const dh = bounds.sh * s;
   const dx = (W - dw) / 2 + offX * (dw - W) / 2;
   const dy = (H - dh) / 2 + offY * (dh - H) / 2;
+
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(art, dx, dy, dw, dh);
+  ctx.drawImage(art, bounds.sx, bounds.sy, bounds.sw, bounds.sh, dx, dy, dw, dh);
 
   if (camera) drawCamera(ctx, k);
   ctx.restore();
@@ -93,6 +180,7 @@ function drawCamera(ctx, k) {
   ctx.lineWidth = lw;
   roundRectPath(ctx, x, y, w, h, CAMERA.r * k);
   ctx.stroke();
+
   // bordo interno sottile come nell'originale
   const inset = 0.6 * k;
   ctx.lineWidth = lw * 0.6;
