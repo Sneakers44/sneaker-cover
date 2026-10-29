@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=3">
 </head>
 <body>
   <header class="topbar">
@@ -71,7 +71,8 @@
         <label>Zoom <input id="zoom" type="range" min="1" max="2.5" step="0.01" value="1"></label>
         <label>Orizzontale <input id="offX" type="range" min="-1" max="1" step="0.01" value="0"></label>
         <label>Verticale <input id="offY" type="range" min="-1" max="1" step="0.01" value="0"></label>
-        <label class="switch"><input id="camGuide" type="checkbox" checked> Guida foro fotocamere</label>
+        <label class="switch"><input id="camGuide" type="checkbox" checked> Linea tratteggiata foro fotocamere</label>
+        <label class="switch"><input id="autoTrim" type="checkbox" checked> Rimuovi bordi bianchi in automatico</label>
       </div>
 
       <div class="row">
@@ -127,6 +128,6 @@
   </dialog>
 
   <script src="vendor/jspdf.umd.min.js"></script>
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=3"></script>
 </body>
 </html>

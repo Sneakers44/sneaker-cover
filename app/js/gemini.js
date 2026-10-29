@@ -6,48 +6,47 @@ export const DEFAULT_MODEL = 'gemini-2.5-flash-image';
 export const STYLES = {
   pop: {
     label: 'Graphic pop (come il PDF originale)',
-    prompt: `Bold flat graphic illustration reinterpreting the sneaker's design: large color-blocked shapes
-that follow the shoe's panels, overlays and swooshes, with realistic material textures (suede nap, leather,
-mesh) and visible stitching lines, thick dark outlines. In the center (slightly below the middle) place a
-circular MagSafe-style emblem: a thick white ring split into quadrants filled with the shoe colors and a
-subtle halftone/checker pattern, the shoe brand logo in a small white circle at its core, and a short
-vertical white stem going down from the ring holding a small barcode label with tiny text
-"DESIGNED TO PRINT".`,
+    prompt: `Bold flat graphic pop-art illustration reinterpreting the sneaker's design: large dynamic
+color-blocked shapes inspired by the shoe's panels, overlays, stripes or swooshes, with rich tactile textures
+(suede nap, leather grain, mesh weave) and crisp stitching lines, outlined in bold dark ink, extending
+continuously past all four edges of the image. Slightly below the vertical center, place a bold circular
+geometric badge: a thick white ring divided into quadrants filled with the shoe's colors and subtle
+halftone/checker dots, with the sneaker brand logo centered in a small inner circle, and a short vertical
+white tag below it featuring a tiny barcode and "DESIGNED TO PRINT".`,
   },
   texture: {
     label: 'Texture materiali (macro)',
-    prompt: `Abstract macro close-up composition of the sneaker's materials: suede, leather, mesh, laces,
-stitching and sole texture, arranged as an elegant artistic collage with the exact color palette of the shoe.
-Rich tactile detail, soft studio lighting.`,
+    prompt: `Seamless full-frame macro artistic collage of the sneaker's materials: suede, leather, mesh,
+laces, stitching and sole pattern, arranged edge-to-edge with the exact color palette of the shoe.
+Rich tactile detail, studio lighting, filling the entire frame to all four corners.`,
   },
   minimal: {
     label: 'Minimal geometrico',
-    prompt: `Minimalist modern geometric poster: a few clean flat shapes and lines inspired by the sneaker's
-silhouette and color blocking, generous negative space using the shoe's dominant base color, small discreet
-brand logo near the bottom.`,
+    prompt: `Minimalist modern geometric full-bleed poster: clean flat shapes and dynamic curves inspired by
+the sneaker's silhouette and color blocking on a solid colored background taken from the shoe's palette,
+with a small discreet brand logo in the lower half, filling 100% of the canvas edge to edge.`,
   },
   street: {
     label: 'Street art / graffiti',
-    prompt: `Vibrant street-art graffiti wall artwork inspired by the sneaker: spray paint textures, drips,
-stencil shapes of the shoe, tags and stickers, strictly using the shoe's color palette.`,
+    prompt: `Vibrant edge-to-edge street-art mural inspired by the sneaker: spray paint textures, drips,
+stencil shapes and graphic tags strictly using the shoe's color palette, covering 100% of the wall from
+corner to corner with no borders.`,
   },
 };
 
 export function buildPrompt(styleKey, extra) {
   const style = STYLES[styleKey] || STYLES.pop;
-  return `You are designing a full-bleed printable artwork insert for a clear iPhone 16 Pro Max case.
-Use the attached photo of my sneakers as the ONLY source of inspiration: match their exact colors,
-materials, patterns and branding so the phone case pairs perfectly with the shoes.
+  return `Create a vertical 9:16 full-bleed rectangular graphic wallpaper artwork inspired ONLY by the sneakers
+in the attached photo: match their exact colors, materials, textures, patterns and brand logo.
 
 STYLE:
 ${style.prompt}
 
-CRITICAL FULL-BLEED AND NO-BORDER RULES:
-- Vertical portrait artwork filling 100% of the entire canvas from top edge to bottom edge, left edge to right edge.
-- ABSOLUTELY NO white borders, blank margins, framing, letterboxing, or padding at the top, bottom, or sides.
-- Do NOT draw a phone case outline, rounded smartphone borders, mockup frame, cut lines, or camera cutout holes on the image itself. The artwork must bleed completely past all edges.
-- The top-left corner (top 26% height x left 52% width) will later have a camera cutout hole made: do not place important logos or details in that top-left corner.
-- Keep the main graphic design elements centered horizontally and vertically. High resolution, ultra crisp, print quality.
+STRICT FULL-BLEED COMPOSITION RULES (CRITICAL):
+- Fill 100% of the rectangular 9:16 canvas all the way into all four corners from top edge to bottom edge and left edge to right edge.
+- ZERO margins, ZERO white or light-grey borders, ZERO framing, ZERO rounded corners, ZERO card/sticker/device/case outline. Colored artwork and background textures MUST touch every single pixel of the top, bottom, left and right edges.
+- Keep the top-left quadrant (top 28% height x left 55% width) strictly as continuous colored background pattern without logos or focal details.
+- Keep main focal elements horizontally centered in the middle/lower area. Crisp high-resolution print quality.
 ${extra ? `\nADDITIONAL USER INSTRUCTIONS:\n${extra}\n` : ''}`;
 }
 

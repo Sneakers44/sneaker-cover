@@ -1,6 +1,6 @@
-import { STYLES, DEFAULT_MODEL, buildPrompt, generateCover, listImageModels } from './gemini.js';
-import { previewCanvas, buildPdf } from './layout.js';
-import { saveCover, listCovers, deleteCover } from './storage.js';
+import { STYLES, DEFAULT_MODEL, buildPrompt, generateCover, listImageModels } from './gemini.js?v=3';
+import { previewCanvas, buildPdf } from './layout.js?v=3';
+import { saveCover, listCovers, deleteCover } from './storage.js?v=3';
 
 const $ = id => document.getElementById(id);
 const LS = {
@@ -149,6 +149,7 @@ function layoutOpts() {
     offX: +$('offX').value,
     offY: +$('offY').value,
     camera: $('camGuide').checked,
+    autoTrim: $('autoTrim').checked,
     subtitle: LS.subtitle || undefined,
   };
 }
@@ -294,7 +295,7 @@ function init() {
   $('btnPdf').addEventListener('click', makePdf);
   $('btnShare').addEventListener('click', sharePdf);
   $('btnCancel').addEventListener('click', () => state.abort?.abort());
-  for (const id of ['zoom', 'offX', 'offY', 'camGuide']) {
+  for (const id of ['zoom', 'offX', 'offY', 'camGuide', 'autoTrim']) {
     $(id).addEventListener('input', () => { resetPdf(); renderPreview(); });
   }
   $('btnSettings').addEventListener('click', openSettings);
@@ -304,7 +305,7 @@ function init() {
   if (!LS.key) setTimeout(() => toast('Benvenuto! Apri ⚙️ e inserisci la tua chiave API Gemini.', false, 5000), 600);
 
   if ('serviceWorker' in navigator && window.isSecureContext) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js?v=3').then(reg => reg.update()).catch(() => {});
   }
 }
 

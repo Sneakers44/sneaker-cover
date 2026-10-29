@@ -3,10 +3,10 @@
 
 export const PAGE = { w: 210, h: 297 };
 
-// Sagoma (linea di taglio tratteggiata) – identica all'originale
+// Sagoma esterna (linea di taglio tratteggiata) – identica all'originale
 export const CUT = { x: 27.2, y: 73.95, w: 77.6, h: 163.0, r: 12 };
 
-// Guida modulo fotocamere iPhone 16 Pro Max (relativa all'angolo in alto a
+// Sagoma foro modulo fotocamere iPhone 16 Pro Max (relativa all'angolo in alto a
 // sinistra della sagoma, vista posteriore).
 export const CAMERA = {
   x: 5.2, y: 5.5, w: 38.2, h: 38.7, r: 6.5,
@@ -24,94 +24,126 @@ const DPI = 300;
 const PX_PER_MM = DPI / 25.4;
 
 function roundRectPath(ctx, x, y, w, h, r) {
+  const rr = Math.max(0, Math.min(r, w / 2, h / 2));
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x, y, x + r, y, r);
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.arcTo(x + w, y, x + w, y + rr, rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.arcTo(x + w, y + h, x + w - rr, y + h, rr);
+  ctx.lineTo(x + rr, y + h);
+  ctx.arcTo(x, y + h, x, y + h - rr, rr);
+  ctx.lineTo(x, y + rr);
+  ctx.arcTo(x, y, x + rr, y, rr);
   ctx.closePath();
 }
 
 /**
- * Rileva ed elimina eventuali margini/cornici bianche generate dal modello
- * per far sì che la grafica riempia l'intera sagoma da bordo a bordo senza lasciare strisce bianche.
+ * Rileva ed elimina eventuali margini chiari/bianchi/grigio-carta (anche texturizzati o con
+ * cornice arrotondata e watermark nell'angolo) attorno alla grafica generata dall'AI,
+ * così che il disegno riempia al 100% l'altezza e la larghezza della sagoma senza bordi bianchi.
  */
-function getArtworkContentBounds(art) {
+export function getArtworkContentBounds(art) {
   const iw = art.naturalWidth || art.width;
   const ih = art.naturalHeight || art.height;
+  const sw = Math.min(iw, 380);
+  const sh = Math.max(20, Math.round(ih * (sw / iw)));
+
   const sampleCanvas = document.createElement('canvas');
-  // Usiamo una risoluzione compatta per analizzare i bordi velocemente
-  const sw = Math.min(iw, 400);
-  const sh = Math.round(ih * (sw / iw));
   sampleCanvas.width = sw;
   sampleCanvas.height = sh;
-  const sctx = sampleCanvas.getContext('2d');
+  const sctx = sampleCanvas.getContext('2d', { willReadFrequently: true });
   sctx.drawImage(art, 0, 0, sw, sh);
 
-  const imgData = sctx.getImageData(0, 0, sw, sh).data;
+  const data = sctx.getImageData(0, 0, sw, sh).data;
   const isBlank = (x, y) => {
     const idx = (y * sw + x) * 4;
-    const r = imgData[idx], g = imgData[idx + 1], b = imgData[idx + 2], a = imgData[idx + 3];
-    return a < 20 || (r > 240 && g > 240 && b > 240);
+    const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
+    if (a < 25) return true;
+    const mn = Math.min(r, g, b);
+    const mx = Math.max(r, g, b);
+    // Cattura bianco puro, avorio, grigio chiaro e sfondi carta (RGB > 205 e bassa saturazione)
+    return mn > 205 && (mx - mn) < 28;
+  };
+
+  // Analizza la fascia centrale [30%..70%] per ignorare angoli arrotondati e watermark in basso a destra
+  const x0 = Math.floor(sw * 0.30), x1 = Math.ceil(sw * 0.70);
+  const y0 = Math.floor(sh * 0.30), y1 = Math.ceil(sh * 0.70);
+  const maxY = Math.floor(sh * 0.18);
+  const maxX = Math.floor(sw * 0.20);
+
+  const rowBlankRatio = y => {
+    let c = 0, n = 0;
+    for (let x = x0; x < x1; x++, n++) if (isBlank(x, y)) c++;
+    return n ? c / n : 0;
+  };
+  const colBlankRatio = x => {
+    let c = 0, n = 0;
+    for (let y = y0; y < y1; y++, n++) if (isBlank(x, y)) c++;
+    return n ? c / n : 0;
   };
 
   let top = 0;
-  while (top < sh - 10) {
-    let blankCount = 0;
-    for (let x = 0; x < sw; x += 2) {
-      if (isBlank(x, top)) blankCount++;
-    }
-    if (blankCount / (sw / 2) > 0.94) top++;
-    else break;
-  }
+  while (top < maxY && rowBlankRatio(top) > 0.88) top++;
+  if (top >= maxY) top = 0; // sfondo volutamente chiaro
 
   let bottom = sh - 1;
-  while (bottom > top + 10) {
-    let blankCount = 0;
-    for (let x = 0; x < sw; x += 2) {
-      if (isBlank(x, bottom)) blankCount++;
-    }
-    if (blankCount / (sw / 2) > 0.94) bottom--;
-    else break;
-  }
+  while ((sh - 1 - bottom) < maxY && rowBlankRatio(bottom) > 0.88) bottom--;
+  if ((sh - 1 - bottom) >= maxY) bottom = sh - 1;
 
   let left = 0;
-  while (left < sw - 10) {
-    let blankCount = 0;
-    for (let y = top; y <= bottom; y += 2) {
-      if (isBlank(left, y)) blankCount++;
-    }
-    if (blankCount / ((bottom - top) / 2) > 0.94) left++;
-    else break;
-  }
+  while (left < maxX && colBlankRatio(left) > 0.88) left++;
+  if (left >= maxX) left = 0;
 
   let right = sw - 1;
-  while (right > left + 10) {
-    let blankCount = 0;
-    for (let y = top; y <= bottom; y += 2) {
-      if (isBlank(right, y)) blankCount++;
+  while ((sw - 1 - right) < maxX && colBlankRatio(right) > 0.88) right--;
+  if ((sw - 1 - right) >= maxX) right = sw - 1;
+
+  const trimmed = top > 2 || bottom < sh - 3 || left > 2 || right < sw - 3;
+  if (trimmed) {
+    // Rientro (2.2%) sui lati rifilati: elimina sia gli aloni anti-aliasing sia eventuali
+    // bordini neri/cornici disegnati dall'AI attorno alla sagoma
+    if (top > 2) top += Math.max(3, Math.round(sh * 0.022));
+    if (bottom < sh - 3) bottom -= Math.max(3, Math.round(sh * 0.022));
+    if (left > 2) left += Math.max(3, Math.round(sw * 0.022));
+    if (right < sw - 3) right -= Math.max(3, Math.round(sw * 0.022));
+
+    // Verifica che nei 3 angoli visibili della sagoma (escluso alto-sx dove c'è la fotocamera)
+    // non restino spicchi bianchi dovuti a eventuali cornici arrotondate disegnate dall'AI
+    const cornerPts = [
+      [CUT.w - 4.5, 4.5],
+      [4.5, CUT.h - 4.5],
+      [CUT.w - 4.5, CUT.h - 4.5],
+    ];
+    for (let iter = 0; iter < 5; iter++) {
+      const cw = right - left + 1, ch = bottom - top + 1;
+      if (cw < sw * 0.5 || ch < sh * 0.5) break;
+      const s = Math.max(CUT.w / cw, CUT.h / ch);
+      const dw = cw * s, dh = ch * s;
+      const dx = (CUT.w - dw) / 2, dy = (CUT.h - dh) / 2;
+      let hasCornerWhite = false;
+      for (const [mx, my] of cornerPts) {
+        const px = Math.round(left + (mx - dx) / s);
+        const py = Math.round(top + (my - dy) / s);
+        if (px >= 0 && px < sw && py >= 0 && py < sh && isBlank(px, py)) {
+          hasCornerWhite = true;
+          break;
+        }
+      }
+      if (!hasCornerWhite) break;
+      const nx = Math.max(1, Math.round(cw * 0.008));
+      const ny = Math.max(1, Math.round(ch * 0.008));
+      left += nx; right -= nx; top += ny; bottom -= ny;
     }
-    if (blankCount / ((bottom - top) / 2) > 0.94) right--;
-    else break;
   }
 
-  // Se i bordi trovati sono minimi o inconsistenti, usa l'immagine intera
-  const scale = iw / sw;
-  const cropX = Math.round(left * scale);
-  const cropY = Math.round(top * scale);
-  const cropW = Math.round((right - left + 1) * scale);
-  const cropH = Math.round((bottom - top + 1) * scale);
-
+  const scaleX = iw / sw;
+  const scaleY = ih / sh;
   return {
-    sx: cropX,
-    sy: cropY,
-    sw: cropW,
-    sh: cropH,
+    sx: Math.round(left * scaleX),
+    sy: Math.round(top * scaleY),
+    sw: Math.max(1, Math.round((right - left + 1) * scaleX)),
+    sh: Math.max(1, Math.round((bottom - top + 1) * scaleY)),
   };
 }
 
@@ -129,7 +161,7 @@ export function composeCover(art, opts = {}) {
   c.width = W; c.height = H;
   const ctx = c.getContext('2d');
 
-  // Fondo trasparente/bianco fuori sagoma
+  // Fondo bianco fuori dagli angoli arrotondati (il JPEG nel PDF non ha canale alfa)
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, W, H);
 
@@ -139,7 +171,7 @@ export function composeCover(art, opts = {}) {
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, W, H);
 
-  // Rileva e rimuove eventuali margini bianchi lasciati dall'AI
+  // Rileva e rimuove eventuali margini chiari lasciati dall'AI
   let bounds = { sx: 0, sy: 0, sw: art.naturalWidth || art.width, sh: art.naturalHeight || art.height };
   if (autoTrim) {
     try {
@@ -159,48 +191,75 @@ export function composeCover(art, opts = {}) {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(art, bounds.sx, bounds.sy, bounds.sw, bounds.sh, dx, dy, dw, dh);
 
-  if (camera) drawCamera(ctx, k);
+  if (camera) drawCameraInterior(ctx, k);
   ctx.restore();
   return c;
 }
 
-function drawCamera(ctx, k) {
-  const x = CAMERA.x * k, y = CAMERA.y * k, w = CAMERA.w * k, h = CAMERA.h * k;
-  const lw = Math.max(1, 0.25 * k);
+/**
+ * Disegna l'area interna di scarto del modulo fotocamere con 1.4 mm di abbondanza (bleed) interna:
+ * la grafica prosegue per 1.4 mm dentro la linea tratteggiata così che ritagliando lungo il tratteggio
+ * non rimanga alcun bordino bianco attorno al foro fotocamere.
+ */
+function drawCameraInterior(ctx, k) {
+  const bleed = 1.4 * k; // 1.4 mm di abbondanza colore dentro la linea di taglio
+  const x = CAMERA.x * k + bleed;
+  const y = CAMERA.y * k + bleed;
+  const w = CAMERA.w * k - bleed * 2;
+  const h = CAMERA.h * k - bleed * 2;
+  const r = Math.max(1, CAMERA.r * k - bleed);
+
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.25)';
-  ctx.shadowBlur = 0.8 * k;
-  roundRectPath(ctx, x, y, w, h, CAMERA.r * k);
-  ctx.fillStyle = '#fff';
+  roundRectPath(ctx, x, y, w, h, r);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
   ctx.fill();
-  ctx.restore();
 
-  ctx.save();
-  ctx.strokeStyle = '#111';
-  ctx.lineWidth = lw;
-  roundRectPath(ctx, x, y, w, h, CAMERA.r * k);
-  ctx.stroke();
-
-  // bordo interno sottile come nell'originale
-  const inset = 0.6 * k;
-  ctx.lineWidth = lw * 0.6;
-  roundRectPath(ctx, x + inset, y + inset, w - 2 * inset, h - 2 * inset, Math.max(0, CAMERA.r * k - inset));
-  ctx.stroke();
-
+  // Riferimento leggero lenti interne (solo orientamento visivo nella parte da eliminare)
+  const ox = CAMERA.x * k, oy = CAMERA.y * k, ow = CAMERA.w * k, oh = CAMERA.h * k;
+  ctx.strokeStyle = '#c4c7ce';
+  ctx.lineWidth = Math.max(1, 0.2 * k);
   for (const hole of CAMERA.holes) {
-    const cx = x + hole.cx * w, cy = y + hole.cy * h, r = hole.r * w;
-    ctx.lineWidth = lw;
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-    if (hole.ring) {
-      ctx.lineWidth = lw * 0.6;
-      ctx.beginPath(); ctx.arc(cx, cy, r * 0.82, 0, Math.PI * 2); ctx.stroke();
-    }
+    const cx = ox + hole.cx * ow, cy = oy + hole.cy * oh, hr = hole.r * ow;
+    ctx.beginPath(); ctx.arc(cx, cy, hr, 0, Math.PI * 2); ctx.stroke();
   }
+
+  // Etichetta chiara "RITAGLIA" al centro della parte da rimuovere
+  ctx.fillStyle = '#555';
+  ctx.font = `bold ${Math.round(2.7 * k)}px -apple-system, Helvetica, Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('✂ RITAGLIA FORO', x + w / 2, y + h / 2);
   ctx.restore();
 }
 
-/** Anteprima con linea tratteggiata (solo schermo). */
-export function previewCanvas(art, opts) {
+/** Disegna su canvas la linea tratteggiata ad alto contrasto del foro fotocamere (per anteprima). */
+function strokeCameraCutLineCanvas(ctx, offsetX, offsetY, k) {
+  const x = offsetX + CAMERA.x * k;
+  const y = offsetY + CAMERA.y * k;
+  const w = CAMERA.w * k;
+  const h = CAMERA.h * k;
+  const r = CAMERA.r * k;
+
+  ctx.save();
+  // Traccia bianca sottile di contrasto per renderla ben visibile anche su sfondi neri/scuri
+  ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.lineWidth = Math.max(1.5, 0.75 * k);
+  roundRectPath(ctx, x, y, w, h, r);
+  ctx.stroke();
+
+  // Linea tratteggiata scura di taglio (identica per stile al bordo esterno)
+  ctx.setLineDash([1.5 * k, 1.0 * k]);
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = Math.max(1, 0.35 * k);
+  roundRectPath(ctx, x, y, w, h, r);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Anteprima con linee tratteggiate di ritaglio (esterna + foro fotocamere). */
+export function previewCanvas(art, opts = {}) {
+  const { camera = true } = opts;
   const cover = composeCover(art, { ...opts, scale: 0.5 });
   const k = PX_PER_MM * 0.5;
   const pad = Math.round(3 * k);
@@ -209,19 +268,29 @@ export function previewCanvas(art, opts) {
   c.height = cover.height + pad * 2;
   const ctx = c.getContext('2d');
   ctx.drawImage(cover, pad, pad);
-  ctx.setLineDash([1.2 * k, 0.8 * k]);
-  ctx.strokeStyle = '#888';
-  ctx.lineWidth = Math.max(1, 0.27 * k);
+
+  // Linea tratteggiata esterna
+  ctx.save();
+  ctx.setLineDash([1.5 * k, 1.0 * k]);
+  ctx.strokeStyle = '#777';
+  ctx.lineWidth = Math.max(1, 0.32 * k);
   roundRectPath(ctx, pad, pad, cover.width, cover.height, CUT.r * k);
   ctx.stroke();
+  ctx.restore();
+
+  // Linea tratteggiata foro fotocamere
+  if (camera) {
+    strokeCameraCutLineCanvas(ctx, pad, pad, k);
+  }
   return c;
 }
 
 /**
- * Genera il PDF A4 con lo stesso layout dell'originale.
+ * Genera il PDF A4 con lo stesso layout dell'originale + linea tratteggiata per il foro fotocamere.
  * @returns {Blob}
  */
-export function buildPdf(art, opts) {
+export function buildPdf(art, opts = {}) {
+  const { camera = true } = opts;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
   doc.setProperties({ title: 'Stampa Custodia iPhone 16 Pro Max', creator: 'Sneaker Cover' });
@@ -259,8 +328,8 @@ export function buildPdf(art, opts) {
 
   const bullets = [
     [['n', 'Nella finestra della stampante, seleziona '], ['b', '"Dimensioni reali"'], ['n', ' oppure '], ['b', '"Scala 100%"'], ['n', '.']],
-    [['b', 'NON'], ['n', ' selezionare '], ['i', '"Adatta alla pagina"'], ['n', ' o '], ['i', '"Riduci/Ingrandisci"'], ['n', '.']],
-    [['n', 'Ritaglia lungo la linea tratteggiata esterna ed effettua il foro per il modulo fotocamere.']],
+    [['b', 'NON'], ['n', ' selezionare '], ['i', '"Adatta alla pagina"'], ['n', '  o '], ['i', '"Riduci/Ingrandisci"'], ['n', '.']],
+    [['n', 'Ritaglia lungo le due linee tratteggiate: il contorno esterno e il foro modulo fotocamere.']],
     [['n', "Inserisci il foglio all'interno della tua custodia trasparente."]],
   ];
   const ys = [42.9, 48.7, 54.2, 59.7];
@@ -278,15 +347,33 @@ export function buildPdf(art, opts) {
 
   // --- Grafica cover nella sagoma
   const cover = composeCover(art, opts);
-  const jpg = cover.toDataURL('image/jpeg', 0.93);
+  const jpg = cover.toDataURL('image/jpeg', 0.94);
   doc.addImage(jpg, 'JPEG', CUT.x, CUT.y, CUT.w, CUT.h, undefined, 'NONE');
 
-  // linea di taglio tratteggiata
-  doc.setDrawColor(136, 136, 136);
-  doc.setLineWidth(0.27);
-  doc.setLineDashPattern([1.2, 0.8], 0);
+  // --- Linea di taglio tratteggiata esterna
+  doc.setDrawColor(95, 95, 95);
+  doc.setLineWidth(0.32);
+  doc.setLineDashPattern([1.5, 1.0], 0);
   doc.roundedRect(CUT.x, CUT.y, CUT.w, CUT.h, CUT.r, CUT.r, 'S');
   doc.setLineDashPattern([], 0);
+
+  // --- Linea di taglio tratteggiata per il foro modulo fotocamere (vettoriale ad alto contrasto)
+  if (camera) {
+    const cx = CUT.x + CAMERA.x;
+    const cy = CUT.y + CAMERA.y;
+    // Traccia bianca sottostante per visibilità perfetta anche su grafiche scure/nere
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(0.75);
+    doc.setLineDashPattern([], 0);
+    doc.roundedRect(cx, cy, CAMERA.w, CAMERA.h, CAMERA.r, CAMERA.r, 'S');
+
+    // Tratteggio scuro nitido sopra la traccia bianca
+    doc.setDrawColor(34, 34, 34);
+    doc.setLineWidth(0.35);
+    doc.setLineDashPattern([1.5, 1.0], 0);
+    doc.roundedRect(cx, cy, CAMERA.w, CAMERA.h, CAMERA.r, CAMERA.r, 'S');
+    doc.setLineDashPattern([], 0);
+  }
 
   // --- Test di scala 5 cm
   doc.setFont('helvetica', 'bold');

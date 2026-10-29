@@ -1,7 +1,7 @@
-// Service worker: rende l'app utilizzabile offline (la generazione AI richiede comunque internet)
-const CACHE = 'sneaker-cover-v1';
+// Service worker: rende l'app utilizzabile offline e aggiorna subito i file quando online
+const CACHE = 'sneaker-cover-v3';
 const ASSETS = [
-  './', 'index.html', 'css/styles.css', 'js/app.js', 'js/gemini.js', 'js/layout.js', 'js/storage.js',
+  './', 'index.html', 'css/styles.css?v=3', 'js/app.js?v=3', 'js/gemini.js?v=3', 'js/layout.js?v=3', 'js/storage.js?v=3',
   'vendor/jspdf.umd.min.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 self.addEventListener('install', e => {
@@ -13,10 +13,9 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return; // API Gemini: sempre rete
-  // network-first, fallback cache
+  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then(res => {
+    fetch(e.request, { cache: 'no-cache' }).then(res => {
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put(e.request, copy));
       return res;
